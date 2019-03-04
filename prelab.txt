@@ -1,0 +1,86 @@
+Daniel Porten:
+
+Prelab 10
+
+PIT_ISR PROC {R0-R14},{}
+;------------------------------------
+;Handles PIT interrupts.
+;R0,R1 handled by ISR mechanics; no need to push.
+;------------------------------------
+			CPSID	I
+			LDRB	R0,=RunStopWatch
+			CMP		R0,#0						;if RunStopWatch != 0
+			BEQ		EndPIT_ISR					;else go to end of ISR
+			LDR		R0,=Count	
+			LDR		R1,[R0,#0]
+			ADDS	R1,R1,#1
+			STR		R1,[R0,#0]					;increment count
+EndPIT_ISR
+			LDR		R0,=PIT_CH0_BASE
+			LDR		R1,=PIT_TFLG_TIF_MASK
+			STR		R1,[R0,#PIT_TFLG_OFFSET]	;clear interrupt
+			
+			CPSIE	I
+			BX		LR
+			ENDP
+			
+Init_PIT_IRQ PROC {R0-R14},{}
+;------------------------------------
+;Initializes PIT to generate interrupts
+;every .01s from channel 0.
+;No inputs. No outputs.
+;Leaves all registers unchanged.
+;------------------------------------
+			PUSH	{R0-R2}
+			; -- Enable PIT Module Clock
+			LDR		R1,=SIM_SCGC6
+			LDR		R2,=SIM_SCGC6_PIT_MASK
+			LDR		R0,[R1,#0]
+			ORRS	R0,R0,R2
+			STR		R0,[R1,#0]
+			
+			; -- Disable PIT Timer 0
+			LDR		R0,=PIT_CH0_BASE
+			LDR		R1,=PIT_TCTRL_TEN_MASK
+			LDR		R2,[R0,#PIT_TCTRL_OFFSET]
+			BICS	R2,R2,R1
+			STR		R2,[R0,#PIT_TCTRL_OFFSET]
+			
+			; -- Set PIT interrupt priority
+			LDR		R0,=PIT_IPR
+			LDR		R1,=NVIC_IPR_PIT_MASK
+			LDR		R2,[R0,#0]
+			BICS	R2,R2,R1
+			STR		R2,[R0,#0]
+			
+			; -- Clear pending PIT interrupts
+			LDR		R0,=NVIC_ICPR
+			LDR		R1,=NVIC_ICPR_PIT_MASK
+			STR		R1,[R0,#0]
+			
+			; -- Unmask PIT interrupts
+			LDR		R0,=NVIC_ISER
+			LDR		R1,=PIT_IRQ_MASK
+			STR		R1,[R0,#0]
+			
+			; -- Enable PIT Module
+			LDR		R0,=PIT_BASE
+			LDR		R1,=PIT_MCR_EN_FRZ
+			STR		R1,[R0,#PIT_MCR_OFFSET]
+			
+			; -- Set Timer 0 period
+			LDR		R0,=PIT_CH0_BASE
+			LDR		R1,=PIT_LDVAL_10ms
+			STR		R1,[R0,#PIT_LDVAL_OFFSET]
+			
+			; -- Enable PIT Timer 0 with interrupts
+			LDR		R0,=PIT_CH0_BASE
+			MOVS	R1,#PIT_TCTRL_CH_IE
+			STR		R1,[R0,#PIT_TCTRL_OFFSET]
+			
+			POP		{R0-R2}
+			BX		LR
+			ENDP
+			;-------------------------------------------------
+			
+            DCD    PIT_ISR      	  ;38:PIT (all IRQ sources)
